@@ -1,0 +1,2076 @@
+---
+title: "Projekt z zakresu analizy danych"
+author: "Weronika Nadworska"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning = F, message = F)
+```
+
+```{r}
+library(tidyverse)
+library(kableExtra)
+library(nortest)
+library(flextable)
+library(rstatix)
+library(ggcorrplot)
+library(ggplot2)
+library(stats)
+library(dplyr)
+library(tidyr)
+library(knitr)
+library(caret)
+library(ggfortify)
+library(lmtest)
+library(olsrr)
+library(nortest)
+library(GGally)
+library(gridExtra)
+library(ggpubr)
+library(car)
+library(gplots)
+library(e1071)
+library(agricolae)
+```
+
+```{r}
+alfa <- 0.05
+```
+
+## Cel badania
+
+W Portugalii obowiązuje punktowy system oceniania od 0 do 20. Przekładając to na polską skalę ocen: ocena dopuszczająca to 10 punktów, dobra to 14-15 punktów, a celująca to 20 punktów. Uczniowie są oceniani na zakończenie każdego semestru (tutaj zmienne: `G1` oraz `G2`) i każdego roku szkolnego (tutaj zmienna `G3`). Do uzyskania promocji konieczne jest uzyskanie minimum 10 punktów.
+
+```{r out.width="20%", out.height="75%", fig.align="center"}
+knitr::include_graphics("C:\\Users\\wnadw\\Desktop\\Pliki studia\\Rok 3\\semestr 1\\Projekt z analizy danych\\images\\flaga.png")
+```
+
+Celem tego badania jest zidentyfikowanie oraz zbadanie w jaki sposób, czynniki takie jak: miejsce zamieszkania, uczęszczanie na zajęcia dodatkowe, czas poświęcany nauce czy dostęp do internetu, wpływają na punkty końcowe uczniów.
+
+```{r out.width="35%", out.height="100%", fig.align="center"}
+knitr::include_graphics("C:\\Users\\wnadw\\Desktop\\Pliki studia\\Rok 3\\semestr 1\\Projekt z analizy danych\\images\\uczniowie.jfif")
+```
+
+## Opis zbioru badawczego
+
+Dane pochodzą z witryny [Kaggle](https://www.kaggle.com/datasets/dipam7/student-grade-prediction). Zawierają dane na temat 649 uczniów dwóch portugalskich szkół. Punkty uzyskane przez uczniów dotyczą języka portugalskiego.
+
+Poniżej przedstawiono 10 początkowych wierszy zbioru badawczego.
+
+```{r}
+dane <- read.csv("C:\\Users\\wnadw\\Desktop\\Pliki studia\\Rok 3\\semestr 1\\Projekt z analizy danych\\student-por.csv") #649
+head(dane, 10) |> 
+  kable() |> 
+  kable_styling(full_width = F, bootstrap_options  = "striped") |> 
+  scroll_box(width = "900px", height = "100%")
+```
+
+```{r}
+#str(dane)
+```
+
+Dane składają się z 33 kolumn oraz 649 obserwacji.
+
+```{r}
+#ncol(dane)
+#nrow(dane)
+```
+
+Opis zmiennych (kolumn):
+
+-   `school` - szkoła, do której uczęszcza uczeń (`GP` - Gabriel Pereira lub `MS` - Mousinho da Silveira)
+
+-   `sex` - płeć ucznia (`F` - female (kobieta) lub `M` - male (mężczyzna))
+
+-   `age` - wiek ucznia (od 15 do 22 lat)
+
+-   `address` - typ adresu zamieszkania ucznia (`U` - urban (miasto) lub `R` - rural (wieś))
+
+-   `famsize` - rozmiar rodziny (`LE3` - większa od 3 lub `GT3` - mniejsza od 3)
+
+-   `Pstatus` - stan konkubinatu rodziców (`T` - together (żyjący razem) lub `A` - apart (oddzielnie))
+
+-   `Medu` - poziom edukacji matki (0 - żaden, 1 - wykształcenie podstawowe, 2 - ukończona 5-9. klasa, 3 - wykształcenie średnie lub 4 - wykształcenie wyższe)
+
+-   `Fedu` - poziom edukacji ojca (0 - żaden, 1 - wykształcenie podstawowe, 2 - ukończona 5-9. klasa, 3 - wykształcenie średnie lub 4 - wykształcenie wyższe)
+
+-   `Mjob` - praca matki (`teacher` - nauczyciel, `health` - opieka zdrowotna, `services` - służby cywilne (np. administracyjne lub policyjne), `at_home` - w domu lub `other` - inne)
+
+-   `Fjob` - praca ojca (`teacher` - nauczyciel, `health` - opieka zdrowotna, `services` - służby cywilne (np. administracyjne lub policyjne), `at_home` - w domu lub `other` - inne)
+
+-   `reason` - powód wybrania szkoły (`home` - blisko do domu, `reputation` - reputacja szkoły, `course` - preferencja kursu (profilu) lub `other` - inne)
+
+-   `guardian` - opiekun ucznia (`mother` - matka, `father` - ojciec lub `other` - inny)
+
+-   `traveltime` - czas dojazdu do szkoły (1 - mniej niż 15 minut, 2 - od 15 do 30 minut, 3 - od 30 minut do 1 godziny lub 4 - ponad 1 godzina)
+
+-   `studytime` - tygodniowy czas nauki (1 - mniej niż 2 godziny, 2 - od 2 do 5 godzin, 3 - od 5 do 10 godzin lub 4 - więcej niż 10 godzin)
+
+-   `failures` - ilość niezdanych klas ucznia (liczba niezdanych razy) (od 0 do 4 )
+
+-   `schoolsup` - dodatkowe wsparcie edukacyjne (tak lub nie)
+
+-   `famsup` - rodzinne wsparcie edukacyjne (tak lub nie)
+
+-   `paid` - dodatkowo płatne zajęcia z przedmiotu (język portugalski) (tak lub nie)
+
+-   `activities` - zajęcia pozalekcyjne (tak lub nie)
+
+-   `nursery` - uczęszczanie do przedszkola w dzieciństwie (tak lub nie)
+
+-   `higher` - chce kontynuować edukację (tak lub nie)
+
+-   `internet` - dostęp do internetu w domu (tak lub nie)
+
+-   `romantic` - jest w związku (ma chłopaka/dziewczynę) (tak lub nie)
+
+-   `famrel` - jakość relacji rodzinnych (od 1 - bardzo złe do 5 - doskonałe)
+
+-   `freetime` - ilość czasu wolnego po szkole (od 1 - bardzo mało do 5 - bardzo dużo)
+
+-   `goout` - ilość czasu poświęconego na spotykanie się ze znajomymi (od 1 - bardzo mało do 5 - bardzo dużo)
+
+-   `Dalc` - ilość spożywanego alkoholu w dni robocze (od 1 - bardzo mało do 5 - bardzo dużo)
+
+-   `Walc` - ilość spożywanego alkoholu w weekendy (od 1 - bardzo mało do 5 - bardzo dużo)
+
+-   `health` - obecny stan zdrowia (od 1 - bardzo złe do 5 - bardzo dobre)
+
+-   `absences` - ilość nieobecności w szkole (od 0 do 93)
+
+-   `G1` - ilość punktów uzyskanych z pierwszego semestru (od 0 do 20)
+
+-   `G2` - ilość punktów uzyskanych z drugiego semestru (od 0 do 20)
+
+-   `G3` - ilość punktów uzyskanych na koniec roku  (od 0 do 20)
+
+Jak można zauważyć, dużo zmiennych jest kategorycznych, dlatego do dalszych badań ich typ został zmieniony na `factor`.
+
+```{r}
+dane$sex <- as.factor(dane$sex)
+dane$adress <- as.factor(dane$address)
+dane$school <- as.factor(dane$school)
+dane$famsize <- as.factor(dane$famsize)
+dane$Pstatus <- as.factor(dane$Pstatus)
+dane$Medu <- as.factor(dane$Medu)
+dane$Fedu <- as.factor(dane$Fedu)
+dane$Mjob <- as.factor(dane$Mjob)
+dane$Fjob <- as.factor(dane$Fjob)
+dane$reason <- as.factor(dane$reason)
+dane$guardian <- as.factor(dane$guardian)
+dane$studytime <- as.factor(dane$studytime)
+dane$failures <- as.factor(dane$failures)
+dane$schoolsup <- as.factor(dane$schoolsup)
+dane$famsup <- as.factor(dane$famsup)
+dane$paid <- as.factor(dane$paid)
+dane$activities <- as.factor(dane$activities)
+dane$nursery <- as.factor(dane$nursery)
+dane$higher <- as.factor(dane$higher)
+dane$internet <- as.factor(dane$internet)
+dane$romantic <- as.factor(dane$romantic)
+dane$famrel <- as.factor(dane$famrel)
+dane$freetime <- as.factor(dane$freetime)
+dane$goout <- as.factor(dane$goout)
+dane$Dalc <- as.factor(dane$Dalc)
+dane$Walc <- as.factor(dane$Walc)
+dane$health <- as.factor(dane$health)
+dane$traveltime <- as.numeric(dane$traveltime)
+dane$absences <- as.numeric(dane$absences)
+```
+
+## Braki danych
+
+```{r}
+br <- colSums(is.na(dane))
+br <- cbind(br)
+colnames(br) <- "Liczba braków"
+br%>% kable() %>% kable_styling(full_width = F, bootstrap_options  = "striped")
+```
+
+W zbiorze nie występują braki danych.
+
+## Statystyki opisowe
+
+Podstawowe statystyki opisowe zmiennych numerycznych:
+
+```{r}
+options(knitr.kable.NA=0)
+pods <- sub(".*:", "",summary(dane[,c("age","absences","G1","G2","G3")])) 
+rownames(pods) <- c("Min.", "1st Qu.", "Median", "Mean", "3rd Qu.", "Max.")
+pods%>% kable() %>% kable_styling(full_width = T, bootstrap_options  = "striped")
+```
+
+Uczniowie biorący udział w badaniu są w wieku 15-22 lata. Patrząc na poszczególne punkty końcowe, możemy zauważyć, że są uczniowie, którzy uzyskali 0 punktów. Średnia punktów końcowych jest zbliżona do 12, co w portugalskiej skali ocen odpowiada polskiej "dwójce" lub "trójce". Średnia punktów semestralnych wynosi 11 w obu semestrach, co również świadczy o dość słabych ocenach uczniów z języka portugalskiego.
+
+Dla zmiennych kategorycznych prezentujemy ich możliwe poziomy, oraz liczby wystąpień każdego poziomu:
+
+```{r}
+options(knitr.kable.NA='')
+dane[,c("school","sex", "adress", "famsize", "Pstatus", "Medu", "Fedu", "traveltime", "Mjob", "Fjob", "reason", "guardian", "studytime", "failures", "schoolsup", "famsup", "paid", "activities", "nursery", "higher", "internet", "romantic", "famrel", "freetime", "goout", "Dalc", "Walc", "health")] |> 
+  summary() |>  
+  kable() |> 
+  kable_styling(full_width = T, bootstrap_options  = "striped") |> 
+  scroll_box(width = "900px", height = "100%")
+```
+
+Zmienne `Mjob` oraz `Fjob` nie będą przedmiotem badań, ponieważ często występuje w nich poziom `other` (inne), co może nie mieć znaczącego przełożenia na punkty końcowe uczniów w rzeczywistości. Zmienne `reason` oraz `guardian` ze względu na trudność w interpretacji wyników, nie będą brane pod uwagę w badaniach.
+
+Badać będziemy czy i jak poszczególne zmienne działają na zmienną `G3` (punkty końcowe) z przedmiotu.
+
+```{r}
+dane %>% 
+  ggboxplot(x='school', y='G3', fill='school', add='jitter')+
+  labs(title="Zróżnicowanie punktów końcowych w podziale na szkoły")
+```
+
+Zróżnicowanie uzyskanych punktów w podziale na szkoły:
+
+```{r}
+ggplot(dane)+ 
+  aes(x=G1, fill=school)+
+  labs(title="Zróżnicowanie punktów w podziale na szkoły w pierwszym semestrze")+
+  geom_boxplot()
+ggplot(dane)+ 
+  aes(x=G2, fill=school)+
+  labs(title="Zróżnicowanie punktów w podziale na szkoły w drugim semestrze")+
+  geom_boxplot()
+ggplot(dane)+ 
+  aes(x=G3, fill=school)+
+  labs(title="Zróżnicowanie punktów końcowych w podziale na szkoły")+
+  geom_boxplot()
+```
+
+Zauważyć można, że mediana punktów w każdym z semestrów oraz punktów końcowych w szkole Mousinho da Silveira jest niższa niż w szkole Gabriel Pereira.
+
+```{r}
+ggplot(dane, aes(x=G3))+
+  labs(title="Histogram punktów końcowych uczniów")+
+  geom_bar()
+```
+
+Uczniowie zwykle uzyskiwali punkty na koniec roku z zakresu 10-13 punktów, co odpowiada polskim ocenom z przedziału 2-3.
+
+```{r echo=F}
+sum(dane$G3<10)
+```
+
+Stu uczniów uzyskało liczbę punktów mniejszą niż 10, co oznacza, że nie uzyskali oni promocji do następnej klasy. W porównaniu z całą grupą 649 uczniów, stanowią oni 15,4%. Niestety nikomu nie udało się dostać 20 punktów, co odpowiadałoby polskiej ocenie "6".
+
+Wykres poniżej przedstawia średnią punktów w danej grupie wraz z jej przedziałem ufności.
+
+```{r}
+dane %>% 
+  ggline(x='school', y='G3',  add='mean_ci')
+```
+
+Widzimy, że średnia punktów końcowych w szkole Gabriel Pereira jest nieco wyższa niż w szkole Mousinho da Silveira.
+
+## Hipotezy
+
+Weryfikowane będą następujące hipotezy:
+
+-   Niezależność płci ucznia i liczby uzyskanych punktów końcowych
+
+-   Niezależność wieku ucznia i liczby uzyskanych punktów końcowych
+
+-   Niezależność typu adresu zamieszkania ucznia i liczby uzyskanych punktów końcowych
+
+-   Niezależność rozmiaru rodziny i liczby uzyskanych punktów końcowych
+
+-   Niezależność stanu konkubinatu rodziców i liczby uzyskanych punktów końcowych ucznia
+
+-   Niezależność poziomu edukacji matki i liczby uzyskanych punktów końcowych
+
+-   Niezależność poziomu edukacji ojca i liczby uzyskanych punktów końcowych
+
+-   Niezależność czasu dojazdu do szkoły i liczby uzyskanych punktów końcowych
+
+-   Średni czas dojazdu ucznia do szkoły jest istotnie dłuższy niż 30 minut
+
+-   Niezależność tygodniowego czasu nauki i liczby uzyskanych punktów końcowych
+
+-   Niezależność ilości niezdanych klas ucznia (liczby niezdanych razy) i liczby uzyskanych punktów końcowych
+
+-   Niezależność dodatkowego wsparcia edukacyjnego i liczby uzyskanych punktów końcowych
+
+-   Niezależność rodzinnego wsparcia edukacyjnego i liczby uzyskanych punktów końcowych
+
+-   Niezależność dodatkowo płatnych zajęć z przedmiotu (język portugalski) i liczby uzyskanych punktów końcowych
+
+-   Niezależność uczęszczania na zajęcia pozalekcyjne i liczby uzyskanych punktów końcowych
+
+-   Niezależność uczęszczania do przedszkola w dzieciństwie i liczby uzyskanych punktów końcowych
+
+-   Niezależność chęci kontynuowania edukacji i liczby uzyskanych punktów końcowych
+
+-   Niezależność dostępu ucznia do internetu w domu i liczby uzyskanych punktów końcowych
+
+-   Niezależność bycia w związku przez ucznia i liczby uzyskanych punktów końcowych
+
+-   Niezależność jakości relacji rodzinnych i liczby uzyskanych punktów końcowych
+
+-   Niezależność ilości czasu wolnego po szkole i liczby uzyskanych punktów końcowych
+
+-   Niezależność częstotliwości spotykania się ze znajomymi i liczby uzyskanych punktów końcowych
+
+-   Niezależność ilości spożywanego alkoholu w dni robocze i liczby uzyskanych punktów końcowych
+
+-   Niezależność ilości spożywanego alkoholu w weekendy i liczby uzyskanych punktów końcowych
+
+-   Niezależność obecnego stanu zdrowia i liczby uzyskanych punktów końcowych
+
+-   Niezależność ilości nieobecności w szkole i liczby uzyskanych punktów końcowych
+
+## Weryfikacja hipotez
+
+Do weryfikacji postawionych hipotez posłuży test $\chi^2$ o hipotezach:
+
+$H_0$: Dystrybuantą badanej cechy jest $F_0$ / Cechy są niezależne (brak wpływu cechy na wyniki)
+
+$H_1$: Dystrybuantą badanej cechy nie jest $F_0$ / Cechy nie są niezależne (wpływ cechy na wyniki)
+
+Przechodzimy do weryfikacji hipotez.
+
+$H_0$: Niezależność wieku ucznia oraz liczby uzyskanych punktów końcowych.
+
+$H_1$: Brak niezależności wieku ucznia oraz liczby uzyskanych punktów końcowych.
+
+Najpierw badamy normalność:
+
+```{r}
+#hist(dane$age)
+shapiro.test(dane$age)
+#kołmogorowa-smirnova
+sre <- mean(dane$age)
+odch <- sd(dane$age)
+ks.test(dane$age,"pnorm",sre,odch)
+```
+
+Na poziomie istotności 0,05 odrzucamy $H_0$ o normalności badanej cechy. Nie możemy stosować testu t- Studenta, ale możemy test Wilcox'ona.
+
+$H_0$: Cechy maja jednakowe rozkłady.
+
+$H_1$: Cechy mają różne rozkłady.
+
+```{r}
+wilcox.test(dane$age)
+```
+
+Odrzucamy $H_0$ o jednakowych rozkładach badanych cech. Zatem nie istnieje zależność pomiędzy wiekiem a ilością punktów ucznia.
+
+$H_0$: Niezależność płci oraz liczby uzyskanych punktów końcowych.
+
+$H_1$: Brak niezależności płci ucznia oraz liczby uzyskanych przez niego punktów końcowych.
+
+```{r}
+tab <- table(dane$sex, dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia hipotezy o niezależności cech. Zatem nie występuje zależność pomiędzy płcią, a uzyskanymi punktami końcowymi z przedmiotu.
+
+Przeprowadzono również test Wilcox'ona, który odrzuca hipotezę o tym samym rozkładzie dla obu cech.
+
+```{r}
+wilcox.test(dane$G3~dane$sex, exact = F)
+```
+
+Zatem test ten także potwierdza niezależność cech.
+
+$H_0$: Niezależność typu adresu zamieszkania ucznia oraz liczby uzyskanych punktów końcowych.
+
+$H_1$: Brak niezależności cech.
+
+```{r}
+tab <- table(dane$adress, dane$G3)
+chisq.test(tab)
+```
+
+Odrzucamy hipotezę zerową na korzyść alternatywnej. Zatem istnieje zależność między typem adresu zamieszkania ucznia oraz liczbą uzyskanych przez niego punktów końcowych.
+
+```{r}
+ggplot(dane, aes(x=G3, y=adress, fill=school))+
+  geom_boxplot()+
+  scale_fill_manual(values=c("#7777D9", "#ee5e5e"))+
+  labs(title="Rozkład punktów w podziale na adres zamieszkania ucznia")+
+  theme_bw()
+```
+
+```{r}
+w1 <- ggplot(dane[dane$school=="GP",], aes(x=adress)) + geom_bar() + labs(title="Liczebość grup dla szkoły GP")
+w2 <- ggplot(dane[dane$school=="MS",], aes(x=adress)) + geom_bar() + labs(title="Liczebność grup dla szkoły MS")
+grid.arrange(w1, w2, ncol=2)
+```
+
+Do szkoły Gabriel Pereira uczęszczają głównie uczniowie zamieszkujący miasta. W tej samej szkole zauważalna jest wyższa mediana uzyskiwanych przez uczniów punktów. Możliwa jest zatem wyższa ilość punktów dla uczniów mieszkających w mieście.
+
+$H_0$: Niezależność czasu dojazdu ucznia do szkoły oraz liczby uzyskanych punktów końcowych.
+
+$H_1$: Brak niezależności czasu dojazdu ucznia do szkoły oraz liczby uzyskanych punktów końcowych.
+
+```{r}
+tab <- table(dane$traveltime, dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$. Zatem cechy te są niezależne.
+
+$H_0$: Średni czas dojazdu ucznia do szkoły jest istotnie dłuższy niż 30 minut.
+
+$H_1$: Średni czas dojazdu ucznia do szkoły nie jest istotnie dłuższy niż 30 minut.
+
+```{r}
+mi0 <- 30
+xi <- c(7.5,22.5,75,90)
+ni <- c(366,213,54,16)
+n <- sum(ni)
+mean <- weighted.mean(xi,ni)
+s <- sqrt(1/(n-1)*sum((xi-mean)^2*ni))
+U <- (mean-mi0)/s*sqrt(n)
+U #ststystyka
+kw <- qnorm(1-alfa)
+kw #zb. kryt.
+```
+
+Zbiór krytyczny wynosi $\left[1,64;\infty\right)$. Statystyka testowa ma wartość $-11,75$ - nie należy zatem do obszaru krytycznego. Stąd na poziomie istotnosci 0,05 nie ma podstaw do odrzucenia $H_0$. Zatem średni czas dojazdu ucznia do szkoły jest istotnie dłuższy niz 30 minut.
+
+$H_0$: Niezależność wielkości rodziny oraz liczby uzyskanych punktów końcowych.
+
+$H_1$: Brak niezależności wielkości rodziny oraz liczby uzyskanych punktów końcowych.
+
+```{r}
+tab <- table(dane$famsize, dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$. Zatem cechy są niezależne.
+
+$H_0$: Niezależność stanu konkubinatu rodziców oraz liczby uzyskanych punktów końcowych.
+
+$H_1$: Brak niezależności stanu konkubinatu rodziców oraz liczby uzyskanych punktów końcowych.
+
+```{r}
+tab <- table(dane$Pstatus, dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$. Zatem cechy są niezależne.
+
+$H_0$: Niezależność poziomu edukacji matki oraz liczby uzyskanych punktów końcowych ucznia.
+
+$H_1$: Brak niezależności poziomu edukacji matki oraz liczby uzyskanych punktów końcowych ucznia.
+
+```{r}
+tab1 <- table(dane$Medu, dane$G3)
+chisq.test(tab1)
+```
+
+Odrzucamy $H_0$ o niezależności cech. Zatem cechy są zależne.
+
+```{r}
+ggplot(dane, aes(x=G3, y=Medu, fill=school))+
+  geom_boxplot()+
+  scale_fill_manual(values=c("#7777D9", "#ee5e5e"))+
+  labs(title="Rozkład punktów w podziale na poziom edukacji matki")+
+  theme_bw()
+```
+
+Zauważyć można, że zakres zdobywanych punktów wzrasta wraz z wyższym poziomem edukacji matki. Mediana punktów dla szkoły Gabriel Pereira wzrasta wraz ze zwiększajacym się poziomem edukacji matki. Dla szkoły Mousinho da Silveira mediana punktów nie rośnie równomiernie, jednak jest najwyższa, gdy poziom edukacji matki osiąga poziom 4 (najwyższy).
+
+```{r}
+balloonplot(tab1, show.margins=F, label=F)
+```
+
+Dla poziomu edukacji matki nr 1 (wykształcenie podstawowe), uczniowie zwykle uzyskiwali punkty w zakresie 10-11. Dla poziomu edukacji nr 2 (ukończona 5-9. klasa) oraz 3 (wykształcenie średnie) jest podobnie. Dla poziomu edukacji nr 4 (wykształcenie wyższe) zakres punktów obejmuje wartości 13-14. 11 to najczęstsza wartość punktów, którą uzyskują uczniowie, co w polskiej skali ocen odpowiada ocenie na granicy 2-3.
+
+```{r}
+w1 <- ggplot(dane[dane$school=="GP",], aes(x=Medu)) + geom_bar() + labs(title="Liczebość grup dla szkoły GP")
+w2 <- ggplot(dane[dane$school=="MS",], aes(x=Medu)) + geom_bar() + labs(title="Liczebność grup dla szkoły MS")
+grid.arrange(w1, w2, ncol=2)
+```
+
+W szkole Gabriel Pereira matki uczniów mają głównie wyższe wykszałcenie, co wiąże się z wnioskami dotyczącymi wykresu boxplot uzyskanego wyżej - matki uczniów mają wyższe wykszatałcenie, a mediana punktów uczniów w tej szkole rośnie wraz ze wzrostem poziomu edukacji matki.
+
+$H_0$: Niezależność poziomu edukacji ojca oraz liczby uzyskanych punktów końcowych ucznia.
+
+$H_1$: Brak niezależności poziomu edukacji ojca oraz liczby uzyskanych punktów końcowych ucznia.
+
+```{r}
+tab2 <- table(dane$Fedu, dane$G3)
+chisq.test(tab2)
+```
+
+Odrzucamy $H_0$ o niezależności cech na korzyść $H_1$. Zatem cechy są zależne.
+
+```{r}
+ggplot(dane, aes(x=G3, y=Fedu, fill=school))+
+  geom_boxplot()+
+  scale_fill_manual(values=c("#7777D9", "#ee5e5e"))+
+  labs(title="Rozkład punktów w podziale na poziom edukacji ojca")+
+  theme_bw()
+```
+
+Zauważyć można, że mediana punktów dla szkoły Gabriel Pereira wzrasta wraz z poziomem edukacji ojca. Dla szkoły Mousinho da Silveira mediana punktów, podobnie jak w przypadku poziomu edukacji matki, jest najwyższa gdy poziom edukacji ojca osiąga poziom 4 (najwyższy). Jednak wysokie wartości uzyskiwanych punktów mają miejsce zarówno dla poziomu edukacji nr 1, jak i dla poziomu 4.
+
+```{r}
+balloonplot(tab2, show.margins=F, label=F)
+```
+
+Dla poziomu edukacji ojca nr 1 (wykształcenie podstawowe), uczniowie zwykle uzyskiwali punkty w zakresie 10-11. Dla poziomu edukacji nr 2 (ukończona 5-9. klasa) jest podobnie. Dla poziomu edukacji nr 3 (wykształcenie średnie) jest to zakres 11-13. Dla poziomu edukacji nr 4 (wykształcenie wyższe) zakres punktów obejmuje wartości 12-13. 11 to najczęstsza wartość punktów, którą uzyskują uczniowie, co w polskiej skali ocen odpowiada ocenie na granicy 2-3.
+
+```{r}
+w1 <- ggplot(dane[dane$school=="GP",], aes(x=Fedu)) + geom_bar() + labs(title="Liczebość grup dla szkoły GP")
+w2 <- ggplot(dane[dane$school=="MS",], aes(x=Fedu)) + geom_bar() + labs(title="Liczebość grup dla szkoły MS")
+grid.arrange(w1, w2, ncol=2)
+```
+
+Liczebność ojców na poziomie edukacji 3 i 4 (wykształcenie średnie oraz wyższe) w szkole Gabriel Pereira jest wyższa, co koresponduje z wyższą medianą punktów w tej szkole.
+
+$H_0$: Niezależność tygodniowej ilości nauki oraz liczby uzyskanych punktów końcowych.
+
+$H_1$: Brak niezależności tygodniowej ilości nauki oraz liczby uzyskanych punktów końcowych.
+
+```{r}
+tab <- table(dane$studytime,dane$G3)
+chisq.test(tab)
+```
+
+Odrzucamy $H_0$ na korzyść $H_1$. Zatem występuje zależność między cechami.
+
+```{r}
+ggplot(dane, aes(x=G3, y=studytime, fill=school))+
+  geom_boxplot()+
+  scale_fill_manual(values=c("#7777D9", "#ee5e5e"))+
+  labs(title="Rozkład punktów w podziale na tygodniowy czas nauki")+
+  theme_bw()
+```
+
+Zauważyć można, że dla szkoły Mousinho da Silveira, wraz ze wzrostem czasu poświęcanego nauce w ciągu tygodnia, rozszerza się zakres punktów o punkty wyższe oraz wyższa jest mediana uzyskiwanych przez uczniów punktów. W szkole Gabriel Pereira również można zaobserwować podobne tendencje, jednak mediana punktów dla poziomu ilości nauki równemu 4 (więcej niż 10 godzin) jest niższa niż na przykład dla poziomu 3.
+
+```{r}
+w1 <- ggplot(dane[dane$school=="GP",], aes(x=studytime)) + geom_bar() + labs(title="Liczebość grup dla szkoły GP")
+w2 <- ggplot(dane[dane$school=="MS",], aes(x=studytime)) + geom_bar() + labs(title="Liczebość grup dla szkoły MS")
+grid.arrange(w1, w2, ncol=2)
+```
+
+Liczebności uczniów w obu szkołach w każdej z grup są na podobnych poziomach.
+
+$H_0$: Niezależność dodatkowego wsparcia edukacyjnego oraz liczby uzyskanych punktów końcowych.
+
+$H_1$: Brak niezależności dodatkowego wsparcia edukacyjnego oraz liczby uzyskanych punktów końcowych.
+
+```{r}
+tab <- table(dane$schoolsup, dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$ - nie istnieje zależność między cechami.
+
+$H_0$: Nieależność uczęszczania w dzieciństwie do przedszkola oraz liczby uzyskanych punktów końcowych.
+
+$H_1$: Brak nieależności uczęszczania w dzieciństwie do przedszkola oraz liczby uzyskanych punktów końcowych.
+
+```{r}
+tab <- table(dane$nursery, dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$ o niezależności cech.
+
+$H_0$: Niezależność dostępu do internetu oraz liczby uzyskanych punktów końcowych.
+
+$H_1$: Brak niezależności dostępu do internetu oraz liczby uzyskanych punktów końcowych.
+
+```{r}
+tab <- table(dane$internet, dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$ - cechy są niezależne.
+
+$H_0$: Niezależność bycia w związku oraz liczby uzyskanych punktów końcowych.
+
+$H_1$: Brak niezależności bycia w związku oraz liczby uzyskanych punktów końcowych.
+
+```{r}
+tab <- table(dane$romantic, dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$. Zatem cechy są niezależne.
+
+$H_0$: Niezależność jakości relacji w rodzinie oraz liczby uzyskanych punktów końcowych.
+
+$H_1$: Brak niezależności jakości relacji w rodzinie oraz liczby uzyskanych punktów końcowych.
+
+```{r}
+tab <- table(dane$famrel, dane$G3)
+chisq.test(tab)
+```
+
+Nie ma pdostaw do odrzucenia $H_0$ o niezależnosci cech.
+
+$H_0$: Niezależność ilości czasu wolnego po szkole oraz liczby uzyskanych punktów końcowych.
+
+$H_1$: Brak niezależności ilości czasu wolnego po szkole oraz liczby uzyskanych punktów końcowych.
+
+```{r}
+tab <- table(dane$freetime, dane$G3)
+chisq.test(tab)
+```
+
+Odrzucamy $H_0$ o niezależności cech. Zatem istnieje zależność między cechami.
+
+```{r}
+ggplot(dane, aes(x=G3, y=freetime, fill=school))+
+  geom_boxplot()+
+  scale_fill_manual(values=c("#7777D9", "#ee5e5e"))+
+  labs(title="Rozkład punktów w podziale na ilość czasu wolnego po szkole")+
+  theme_bw()
+```
+
+Na powyższym wykresie boxplot zauważyć można, że mediany punktów dla niższych poziomów są nieco wyższe niż dla wyższych poziomów w obu szkołach. Zatem można wywnioskować, że uczniowie o czasie wolnym na poziome 1 czy 2 (bardzo mało oraz mało czasu wolnego) uzyskiwali więcej punktów od uczniów, którzy czasu wolnego mają więcej.
+
+```{r}
+w1 <- ggplot(dane[dane$school=="GP",], aes(x=freetime)) + geom_bar() + labs(title="Liczebość grup dla szkoły GP")
+w2 <- ggplot(dane[dane$school=="MS",], aes(x=freetime)) + geom_bar() + labs(title="Liczebość grup dla szkoły MS")
+grid.arrange(w1, w2, ncol=2)
+```
+
+Widzimy, że przeciętny uczeń jest w grupie, gdzie czas wolny jest na poziomie 3 (średnia ilość czasu wolnego).
+
+$H_0$: Niezależność częstości spotykania się ze znajomymi oraz liczby uzyskanych punktów końcowych.
+
+$H_1$: Brak niezależności częstości spotykania się ze znajomymi oraz liczby uzyskanych punktów końcowych.
+
+```{r}
+tab <- table(dane$goout, dane$G3)
+chisq.test(tab)
+```
+
+Odrzucamy $H_0$ o niezależności cech. Zatem cechy są zależne.
+
+```{r}
+ggplot(dane, aes(x=G3, y=goout, fill=school))+
+  geom_boxplot()+
+  scale_fill_manual(values=c("#7777D9", "#ee5e5e"))+
+  labs(title="Rozkład punktów w podziale na częstość spotykania się ze znajomymi")+
+  theme_bw()
+```
+
+W szkole Gabriel Pereira rzadkie spotykanie się ze znajomymi skutkuje wyższymi ilościami uzyskiwanych punktów (wyższa mediana punktów w grupie 1, 2, 3) oraz zakres obejmuje wyższe punkty. W szkole Mousinho da Silveira jest podobnie, choć dla grupy na poziomie 1 (bardzo mało czasu na spotykanie się ze znajomymi) mediana punktów jest niższa niż 10, co jest poniżej granicy zdawalności.
+
+```{r}
+w1 <- ggplot(dane[dane$school=="GP",], aes(x=goout)) + geom_bar() + labs(title="Liczebość grup dla szkoły GP")
+w2 <- ggplot(dane[dane$school=="MS",], aes(x=goout)) + geom_bar() + labs(title="Liczebość grup dla szkoły MS")
+grid.arrange(w1, w2, ncol=2)
+```
+
+Liczebności w każdej z grup w obu szkołach są na podobnym poziomie. Najwięcej uczniów na spotykanie się ze znajomymi poświęca średnią ilość czasu.
+
+$H_0$: Niezależność picia alkoholu w dni robocze oraz liczby uzyskanych punktów końcowych.
+
+$H_1$: Brak niezależności picia alkoholu w dni robocze oraz liczby uzyskanych punktów końcowych.
+
+```{r}
+tab <- table(dane$Dalc, dane$G3)
+chisq.test(tab)
+```
+
+Odrzucamy hipotezę o niezależności cech. Zatem istnieje zależność pomiędzy cechami.
+
+```{r}
+ggplot(dane, aes(x=G3, y=Dalc, fill=school))+
+  geom_boxplot()+
+  scale_fill_manual(values=c("#7777D9", "#ee5e5e"))+
+  labs(title="Rozkład punktów w podziale na poziom spożywania alkoholu w dni robocze")+
+  theme_bw()
+```
+
+Na wykresie boxplot zauważyć można, że uczniowie, w których domach spożywa się duże ilości alkoholu uzyskują dużo niższe punkty.
+
+```{r}
+w1 <- ggplot(dane[dane$school=="GP",], aes(x=Dalc)) + geom_bar() + labs(title="Liczebość grup dla szkoły GP")
+w2 <- ggplot(dane[dane$school=="MS",], aes(x=Dalc)) + geom_bar() + labs(title="Liczebość grup dla szkoły MS")
+grid.arrange(w1, w2, ncol=2)
+```
+
+(Na szczęście) liczebności na poziomach 3-5 są małe. Zatem w domach uczniów spożywa się bardzo mało oraz mało alkoholu w dni robocze.
+
+$H_0$: Niezależność picia alkoholu w weekendy oraz liczby uzyskanych punktów końcowych.
+
+$H_1$: Brak niezależności picia alkoholu w weekendy oraz liczby uzyskanych punktów końcowych.
+
+```{r}
+tab <- table(dane$Walc, dane$G3)
+chisq.test(tab)
+```
+
+Odrzucamy hipotezę o niezależności cech. Zatem zależność między cechami występuje.
+
+```{r}
+ggplot(dane, aes(x=G3, y=Walc, fill=school))+
+  geom_boxplot()+
+  scale_fill_manual(values=c("#7777D9", "#ee5e5e"))+
+  labs(title="Rozkład punktów w podziale na poziom spożywania alkoholu w weekendy")+
+  theme_bw()
+```
+
+Dla obu szkół zauważyć można te same zależności - im więcej spożywa się alkoholu w weekendy, tym mediana punktów uczniów jest niższa.
+
+```{r}
+w1 <- ggplot(dane[dane$school=="GP",], aes(x=Walc)) + geom_bar() + labs(title="Liczebość grup dla szkoły GP")
+w2 <- ggplot(dane[dane$school=="MS",], aes(x=Walc)) + geom_bar() + labs(title="Liczebość grup dla szkoły MS")
+grid.arrange(w1, w2, ncol=2)
+```
+
+Tutaj liczebności spożywania alkoholu w weekendy są wyższe niż dla spożywania alkoholu w dni robocze dla uczniow w obu szkołach. Jednak nadal głównie są to uczniowie, w których domach alkohol w weekendy spożywa się na niskim poziomie.
+
+$H_0$: Niezależność stanu zdrowia oraz liczby uzyskanych punktów końcowych.
+
+$H_1$: Brak niezależności stanu zdrowia oraz liczby uzyskanych punktów końcowych.
+
+```{r}
+tab <- table(dane$health, dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$ o niezależności cech.
+
+$H_0$: Niezależność ilości nieobecności oraz liczby uzyskanych punktów końcowych.
+
+$H_1$: Brak niezależności ilości nieobecności oraz liczby uzyskanych punktów końcowych.
+
+Najpierw badamy normalność:
+
+```{r}
+#hist(dane$age)
+dane$absences <- as.numeric(dane$absences)
+shapiro.test(dane$absences)
+#kołmogorowa-smirnova
+sre <- mean(dane$absences)
+odch <- sd(dane$absences)
+ks.test(dane$absences,"pnorm",sre,odch)
+```
+
+Na poziomie istotności 0,05 odrzucamy $H_0$ o normalności badanej cechy. Możemy stosować test Wilcox'ona.
+
+$H_0$: Cechy mają jednakowe rozkłady.
+
+$H_1$: Cechy mają różne rozkłady.
+
+```{r}
+wilcox.test(dane$absences)
+```
+
+Odrzucamy $H_0$ o jednakowych rozkładach badanych cech. Zatem nie istnieje zależność pomiędzy ilością nieobecności ucznia, a ilością punktów, które otrzymuje na koniec semestru.
+
+```{r}
+dane$higher <- as.factor(dane$higher)
+```
+
+$H_0$: Niezależność chęci kontynuowania edukacji przez ucznia oraz liczby uzyskanych punktów końcowych.
+
+$H_1$: Brak niezależności chęci kontynuowania edukacji przez ucznia oraz liczby uzyskanych punktów końcowych.
+
+```{r}
+tab <- table(dane$higher, dane$G3)
+chisq.test(tab)
+```
+
+Odrzucamy $H_0$ na korzyść $H_1$. Zatem istnieje zależność pomiędzy cechami.
+
+```{r}
+ggplot(dane, aes(x=G3, y=higher, fill=school))+
+  geom_boxplot()+
+  scale_fill_manual(values=c("#7777D9", "#ee5e5e"))+
+  labs(title="Rozkład punktów w podziale na chęć kontynuowania edukacji")+
+  theme_bw()
+```
+
+Zauważyć można, że mediana punktów uzyskiwanych przez uczniów, którzy zamierzają kontynuować edukację, jest wyższa dla obu szkół.
+
+```{r}
+w1 <- ggplot(dane[dane$school=="GP",], aes(x=higher)) + geom_bar() + labs(title="Liczebość grup dla szkoły GP")
+w2 <- ggplot(dane[dane$school=="MS",], aes(x=higher)) + geom_bar() + labs(title="Liczebość grup dla szkoły MS")
+grid.arrange(w1, w2, ncol=2)
+```
+
+W obu szkołach uczniowie w dużej mierze chcą kontynuować swoją edukację.
+
+```{r}
+dane$activities <- as.factor(dane$activities)
+```
+
+$H_0$: Niezależność uczęszczania na zajęcia pozalekcyjne oraz liczby uzyskanych punktów końcowych.
+
+$H_1$: Brak niezależności uczęszczania na zajęcia pozalekcyjne oraz liczby uzyskanych punktów końcowych.
+
+```{r}
+tab <- table(dane$activities, dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia hipotezy o niezależności cech.
+
+```{r}
+dane$paid <- as.factor(dane$paid)
+```
+
+$H_0$: Niezależność uczęszczania na dodatkowo płatne zajęcia z języka portugalskiego oraz liczby uzyskanych punktów końcowych.
+
+$H_1$: Brak niezależności uczęszczania na dodatkowo płatne zajęcia z języka portugalskiego oraz liczby uzyskanych punktów końcowych.
+
+```{r}
+tab <- table(dane$paid, dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$ o niezależności cech.
+
+```{r}
+dane$famsup <- as.factor(dane$famsup)
+```
+
+$H_0$: Niezależność otrzymywania rodzinnego wsparcia edukacyjnego oraz liczby uzyskanych punktów końcowych.
+
+$H_0$: Brak niezależności otrzymywania rodzinnego wsparcia edukacyjnego oraz liczby uzyskanych punktów końcowych.
+
+```{r}
+tab <- table(dane$famsup, dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia hipotezy zerowej. Zatem cechy są niezależne.
+
+```{r}
+dane$failures <- as.numeric(dane$failures)
+```
+
+$H_0$: Niezależność ilość niezdanych klas przez ucznia oraz uliczby zyskanych punktów końcowych.
+
+$H_1$: Brak niezależności ilość niezdanych klas przez ucznia oraz liczby uzyskanych punktów końcowych.
+
+Badamy normalność:
+
+```{r}
+#normalność
+shapiro.test(dane$failures)
+#kołmogorowa-smirnova
+sre <- mean(dane$failures)
+odch <- sd(dane$failures)
+ks.test(dane$failures,"pnorm",sre,odch)
+```
+
+Odrzucamy hipotezę o normalności. Stosujemy test Wilcox'ona.
+
+```{r}
+wilcox.test(dane$failures)
+```
+
+Odrzucamy hipotezę o tym, że cechy mają takie same rozkłady. Zatem występuje brak zależności między cechami.
+
+##### Podsumowanie
+
+Na ilość punktów końcowych mają wpływ zmienne:
+
+- `adress` - miejsce zamieszkania ucznia (możliwe wyższe ilości punktów dla uczniów mieszkających w mieście)
+
+-   `Medu` - poziom edukacji matki ucznia (mediana punktów wzrasta wraz z wyższym wykształceniem)
+
+-   `Fedu` - poziom edukacji ojca ucznia (mediana punktów wzrasta wraz z wyższym wykształceniem)
+
+-   `studytime` - czas spędzany na nauce (wraz ze wzrostem czasu poświęcanego na naukę w ciągu tygodnia, wyższa jest mediana punktów)
+
+-   `higher` - chęć kontynuowania edukacji (grupa uczniów, którzy zamierzają kontynuować edukację, wyróżnia się wyższą medianą punktów)
+
+-   `freetime` - ilość czasu wolnego po szkole (wyższa mediana punktów dla uczniów mających mniej czasu wolnego)
+
+-   `goout` - częstotliwość spotykania się ze znajomymi (wyższa mediana punktów dla uczniów rzadziej spotykających się ze znajomymi)
+
+-   `Dalc` - ilość spożywanego alkoholu w dni robocze (wyższa mediana punktów dla uczniów, w których domach spożywa się mniej alkolohu w dni robocze)
+
+-   `Walc` - ilość spożywanego alkoholu w weekendy (im mniejsza, tym mediana punktów wyższa)
+
+## Niezależność cech
+
+Zostały również przeprowadzone testy badające niezależność wybranyuch cech między sobą.
+
+$H_0$: Niezależność wieku ucznia od ilości czasu spędzanego przez niego na nauce.
+
+$H_1$: Brak niezależności wieku oraz ilości czasu spędzanego na nauce.
+
+```{r}
+tab <- table(dane$age, dane$studytime)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia hipotezy zerowej. Zatem nie ma zależności między wiekiem ucznia, a czasem, jaki poświęca on na naukę.
+
+$H_0$: Niezależność dostępu do internetu oraz ilości czasu spędzanego na nauce.
+
+$H_1$: Brak niezależności dostępu do internetu od ilości czasu spędzanego na nauce.
+
+```{r}
+tab <- table(dane$internet, dane$studytime)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia hipotezy zerowej. Zatem nie ma zależności między dostępem uczniów do internetu, a ilością czasu spędzanego przez nich na naukę.
+
+$H_0$: Niezależność bycia przez ucznia w związku od ilości czasu spędzanego przez niego na nauce.
+
+$H_1$: Brak niezależności między byciem przez ucznia w związku, a ilością czasu spędzanego na nauce.
+
+```{r}
+tab <- table(dane$romantic, dane$studytime)
+chisq.test(tab)
+```
+
+Odrzucamy $H_0$ na korzyść $H_1$. Zatem nie ma niezależności między badanymi cechami.
+
+```{r}
+ggplot(dane, aes(x=G3, y=studytime, fill=romantic))+
+  geom_boxplot()+
+  scale_fill_manual(values=c("#008000", "#FF0000"))+
+  labs(title="Rozkład punktów w podziale na czas nauki uczniów")+
+  theme_bw()
+```
+
+Zauważyć można, że zarówno uczniowie będący w związku, jak i w nim nie będący, im więcej czasu poświęcają nauce, tym zakres uzyskiwanych punktów obejmuje wyższe wartości i ich mediana jest nieco wyższa. Jednak uczniowie nie będący w związku mają wyższe zakresy punktów końcowych oraz ich mediany.
+
+$H_0$: Niezależność ilości czasu spędzonego na spotykaniu się ze znajomymi od ilości czasu spędzanego na nauce.
+
+$H_1$: Brak niezależności ilości czasu spędzonego na spotykaniu się ze znajomymi oraz ilości czasu spędzanego na nauce.
+
+```{r}
+tab <- table(dane$goout, dane$studytime)
+chisq.test(tab)
+```
+
+Odrzucamy hipotezę zerową na korzyść alternatywnej. Istnieje zatem zależność między ilością czasu spędzonego na spotykaniu się ze znajomymi, a ilością czasu spędzanego na nauce.
+
+```{r}
+ggplot(dane, aes(x=G3, y=goout, fill=studytime))+
+  geom_boxplot()+
+  scale_fill_manual(values=c("#FDE456", "#6EBE9F", "#337728", "#ee579e"))+
+  labs(title="Rozkład punktów w podziale na częstotliwość spotykania się ze znajomymi")+
+  theme_bw()
+```
+
+Uczniowie, którzy poświęcają czas na naukę na poziomie "3" (dużo) oraz ci, którzy ze znajomymi spotykają się na poziomie "3" oraz "4" (średnio oraz dużo), mają wyższe mediany ocen.
+
+$H_0$: Niezależność bycia przez ucznia w związku od ilości czasu spędzonego na spotkaniach ze znajomymi.
+
+$H_1$: Brak niezależności między byciem przez ucznia w związku, a ilości czasu spędzanego na spotkaniach ze znajomymi.
+
+```{r}
+tab <- table(dane$romantic, dane$goout)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$. Zatem ilość czasu, jaki uczeń poświęca na spotkania ze znajomymi, nie zależy od bycia przez niego w związku.
+
+$H_0$: Niezależność chęci kontynuowania edukacji oraz ilości czasu spędzanego na nauce.
+
+$H_1$: Brak niezależności między chęcią kontynuowania edukacji oraz ilością czasu spędzanego na nauce.
+
+```{r}
+tab <- table(dane$higher, dane$studytime)
+chisq.test(tab)
+```
+
+Odrzucamy hipotezę zerową na korzyść alternatywnej. Zatem mamy brak niezależności badanych cech.
+
+```{r}
+ggplot(dane, aes(x=G3, y=studytime, fill=higher))+
+  geom_boxplot()+
+  scale_fill_manual(values=c("#FF8000", "#326647"))+
+  labs(title="Rozkład punktów w podziale na czas nauki uczniów")+
+  theme_bw()
+```
+
+Uczniowie, którzy uczą się dużo więcej, a nie chcą kontynuować edukacji, mają niższe punkty od uczniów, którzy edukację chcą kontynuować.
+
+$H_0$: Niezależność wieku oraz chęci kontynuowania edukacji.
+
+$H_1$: Brak niezależności wieku uczniów oraz chęci kontynuowania przez nich edukacji.
+
+```{r}
+tab <- table(dane$age, dane$higher)
+chisq.test(tab)
+```
+
+Odrzucamy hipotezę zerową na korzyść alternatywnej.
+
+```{r}
+ggplot(dane, aes(x=age, y=higher))+
+  geom_boxplot()+
+  scale_fill_manual(values=c("#7777D9", "#ee5e5e"))+
+  theme_bw()
+```
+
+Uczniowie chcący kontynuować swoją edukację należą do grupy uczniów, ktorych obejmuje przedział wiekowy 15-18 lat. Nie chcący kontynuować edukacji są w grupie wiekowej 16-19 lat.
+
+##### Podsumowanie
+
+Na podstawie weryfikacji postawionych hipotez, istnieją zależności między:
+
+-   byciem przez ucznia w związku, a czasem poświęcanym na naukę
+
+-   ilością czasu spędzonego na spotykaniu się ze znajomymi, a ilością czasu spędzanego na nauce
+
+-   chęcią kontynuowania przez ucznia edukacji oraz ilością czasu spędzanego na nauce
+
+-   wiekiem ucznia oraz chęcią kontynuowania przez niego edukacji
+
+## Testy nieparametryczne
+
+Przeprowadzone zostaną testy nieparametryczne, aby zbadać czy poszczególne poziomy zmiennych kategorycznych, które, poprzez weryfikacje hipotez o ich wpływie na zmienną `G3`, mają wpływ na `G3`.
+
+Są to zmienne: `adress`, `Medu`, `Fedu`, `studytime`, `higher`, `freetime`, `goout`, `Dalc` oraz `Walc`.
+
+$H_0$: Zmienna `adress` oraz `G3` mają ten sam rozkład.
+
+$H_1$: Zmienna `adress` oraz `G3` nie mają tego samego rozkładu.
+
+```{r}
+#U
+tab <- table(dane$adress=="U",dane$G3)
+chisq.test(tab)
+```
+
+Odrzucamy $H_0$ na korzyść $H_1$. Zatem miejsce zamieszkania ucznia poziomie "U" (w mieście) nie ma tgo samego rozkładu co `G3`.
+
+```{r}
+#R
+tab <- table(dane$adress=="R",dane$G3)
+chisq.test(tab)
+```
+
+Odrzucamy $H_0$ na korzyść $H_1$. Zatem miejsce zamieszkania ucznia poziomie "R" (na wsi) nie ma tgo samego rozkładu co `G3`.
+
+$H_0$: Zmienna `Medu` oraz `G3` mają ten sam rozkład.
+
+$H_1$: Zmienna `Medu` oraz `G3` nie mają tego samego rozkładu.
+
+```{r}
+#0
+tab <- table(dane$Medu==0,dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$. Zatem poziom edukacji matki na poziomie 0 ma ten sam rozkład co `G3`.
+
+```{r}
+#1
+tab <- table(dane$Medu==1,dane$G3)
+chisq.test(tab)
+```
+
+Odrzucamy $H_0$ na korzysć $H_1$. Zatem poziom edukacji matki na poziomie 1 nie ma tego samego rozkładu co `G3`.
+
+```{r}
+#2
+tab <- table(dane$Medu==2,dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$. Zatem poziom edukacji matki na poziomie 2 ma ten sam rozkład co `G3`.
+
+```{r}
+#3
+tab <- table(dane$Medu==3,dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$. Zatem poziom edukacji matki na poziomie 3 ma ten sam rozkład co `G3`.
+
+```{r}
+#4
+tab <- table(dane$Medu==4,dane$G3)
+chisq.test(tab)
+```
+
+Odrzucamy $H_0$ na korzysć $H_1$. Zatem poziom edykacji matki na poziomie 4 nie ma tego samego rozkładu co `G3`.
+
+$H_0$: Zmienna `Fedu` oraz `G3` mają ten sam rozkład.
+
+$H_1$: Zmienna `Fedu` oraz `G3` nie mają tego samego rozkładu.
+
+```{r}
+#0
+tab <- table(dane$Fedu==0,dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$. Zatem poziom edukacji na poziomie 0 ma ten sam rozkład co `G3`.
+
+```{r}
+#1
+tab <- table(dane$Fedu==1,dane$G3)
+chisq.test(tab)
+```
+
+Odrzucamy $H_0$ na korzysć $H_1$. Zatem poziom edukacji ojca na poziomie 1 nie ma tego samego rozkładu co `G3`.
+
+```{r}
+#2
+tab <- table(dane$Fedu==2,dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$. Zatem poziom edukacji ojca na poziomie 2 ma ten sam rozkład co `G3`.
+
+```{r}
+#3
+tab <- table(dane$Fedu==3,dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$. Zatem poziom edukacji ojca na poziomie 3 ma ten sam rozkład co `G3`.
+
+```{r}
+#4
+tab <- table(dane$Fedu==4,dane$G3)
+chisq.test(tab)
+```
+
+Odrzucamy $H_0$ na korzysć $H_1$. Zatem poziom edukacji ojca na poziomie 4 nie ma tego samego rozkładu co `G3`.
+
+$H_0$: Zmienna `studytime` oraz `G3` mają ten sam rozkład.
+
+$H_1$: Zmienna `studytime` oraz `G3` nie mają tego samego rozkładu.
+
+```{r}
+#1
+tab <- table(dane$studytime==1,dane$G3)
+chisq.test(tab)
+```
+
+Odrzucamy hipotezę zerową na korzysć alternatywnej. Zatem tygodniowy czas spędzany na nauce na poziomie 1 nie ma tego samego rozkładu co `G3`.
+
+```{r}
+#2
+tab <- table(dane$studytime==2,dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$. Zatem tygodniowy czas spędzany na nauce na poziomie 2 ma ten sam rozkład co `G3`.
+
+```{r}
+#3
+tab <- table(dane$studytime==3,dane$G3)
+chisq.test(tab)
+```
+
+Odrzucamy hipotezę zerową na korzyść alternatywnej. Zatem tygodniowy czas spędzany na nauce na poziomie 3 nie ma tego samego rozkładu co `G3`.
+
+```{r}
+#4
+tab <- table(dane$studytime==4,dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$. Zatem tygodniowy czas spędzany na nauce na poziomie 4 ma ten sam rozkład co `G3`.
+
+$H_0$: Zmienna `higher` oraz `G3` mają ten sam rozkład.
+
+$H_1$: Zmienna `higher` oraz `G3` nie mają tego samego rozkładu.
+
+```{r}
+#yes
+tab <- table(dane$higher=='yes',dane$G3)
+chisq.test(tab)
+```
+
+Odrzucamy $H_0$ na korzyść $H_1$. Zatem chęć kontynuowania edukacji nie ma tego samego rozkładu co `G3`.
+
+```{r}
+#no
+tab <- table(dane$higher=='no',dane$G3)
+chisq.test(tab)
+```
+
+Odrzucamy $H_0$ na korzyść $H_1$. Zatem brak chęci kontynuowania edukacji nie ma tego samego rozkładu co `G3`.
+
+$H_0$: Zmienna `freetime` oraz `G3` mają ten sam rozkład.
+
+$H_1$: Zmienna `freetime` oraz `G3` nie mają tego samego rozkładu.
+
+```{r}
+#1
+tab <- table(dane$freetime==1,dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$. Ilość czasu wolnego na poziomie 1 oraz `G3` mają ten sam rozkład.
+
+```{r}
+#2
+tab <- table(dane$freetime==2,dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$. Ilość czasu wolnego na poziomie 2 oraz `G3` mają ten sam rozkład.
+
+```{r}
+#3
+tab <- table(dane$freetime==3,dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$. Ilość czasu wolnego na poziomie 3 oraz `G3` mają ten sam rozkład.
+
+```{r}
+#4
+tab <- table(dane$freetime==4,dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$. Ilość czasu wolnego na poziomie 4 oraz `G3` mają ten sam rozkład.
+
+```{r}
+#5
+tab <- table(dane$freetime==5,dane$G3)
+chisq.test(tab)
+```
+
+Odrzucamy $H_0$ na korzyść $H_1$. Ilość czasu wolnego na poziomie 5 oraz `G3` nie mają tego samego rozkładu.
+
+$H_0$: Zmienna `goout` oraz `G3` mają ten sam rozkład.
+
+$H_1$: Zmienna `goout` oraz `G3` nie mają tego samego rozkładu.
+
+```{r}
+#1
+tab <- table(dane$goout==1,dane$G3)
+chisq.test(tab)
+```
+
+Odrzucamy $H_0$ na korzyść $H_1$. Spotykanie się ze znajomymi na poziomie 1 oraz `G3` nie mają tego samego rozkładu.
+
+```{r}
+#2
+tab <- table(dane$goout==2,dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$. Spotykanie się ze znajomymi na poziomie 2 oraz `G3` mają ten sam rozkład.
+
+```{r}
+#3
+tab <- table(dane$goout==3,dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$. Spotykanie się ze znajomymi na poziomie 3 oraz `G3` mają ten sam rozkład.
+
+```{r}
+#4
+tab <- table(dane$goout==4,dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$. Spotykanie się ze znajomymi na poziomie 4 oraz `G3` mają ten sam rozkład.
+
+```{r}
+#5
+tab <- table(dane$goout==5,dane$G3)
+chisq.test(tab)
+```
+
+Odrzucamy $H_0$ na korzyść $H_1$. Spotykanie się ze znajomymi na poziomie 5 oraz `G3` nie mają tego samego rozkładu.
+
+$H_0$: Zmienna `Dalc` oraz `G3` mają ten sam rozkład.
+
+$H_1$: Zmienna `Dalc` oraz `G3` nie mają tego samego rozkładu.
+
+```{r}
+#1
+tab <- table(dane$Dalc==1,dane$G3)
+chisq.test(tab)
+```
+
+Odrzucamy $H_0$ na korzyść $H_1$. Picie alkoholu w dni robocze na poziomie 1 oraz `G3` nie mają tego samego rozkładu.
+
+```{r}
+#2
+tab <- table(dane$Dalc==2,dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$. Picie alkoholu w dni robocze na poziomie 2 oraz `G3` mają ten sam rozkład.
+
+```{r}
+#3
+tab <- table(dane$Dalc==3,dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$. Picie alkoholu w dni robocze na poziomie 3 oraz `G3` mają ten sam rozkład.
+
+```{r}
+#4
+tab <- table(dane$Dalc==4,dane$G3)
+chisq.test(tab)
+```
+
+Odrzucamy $H_0$ na korzyść $H_1$. Picie alkoholu w dni robocze na poziomie 4 oraz `G3` nie mają tego samego rozkładu.
+
+```{r}
+#5
+tab <- table(dane$Dalc==5,dane$G3)
+chisq.test(tab)
+```
+
+Odrzucamy $H_0$ na korzyść $H_1$. Picie alkoholu w dni robocze na poziomie 5 oraz `G3` nie mają tego samego rozkładu.
+
+$H_0$: Zmienna `Walc` oraz `G3` mają ten sam rozkład.
+
+$H_1$: Zmienna `Walc` oraz `G3` nie mają tego samego rozkładu.
+
+```{r}
+#1
+tab <- table(dane$Walc==1,dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$. Picie alkoholu w weekendy na poziomie 1 oraz `G3` mają ten sam rozkład.
+
+```{r}
+#2
+tab <- table(dane$Walc==2,dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$. Picie alkoholu w weekendy na poziomie 2 oraz `G3` mają ten sam rozkład.
+
+```{r}
+#3
+tab <- table(dane$Walc==3,dane$G3)
+chisq.test(tab)
+```
+
+Nie ma podstaw do odrzucenia $H_0$. Picie alkoholu w weekendy na poziomie 3 oraz `G3` mają ten sam rozkład.
+
+```{r}
+#4
+tab <- table(dane$Walc==4,dane$G3)
+chisq.test(tab)
+```
+
+Odrzucamy $H_0$ na korzyść $H_1$. Picie alkoholu w weekendy na poziomie 4 oraz `G3` nie mają tego samego rozkładu.
+
+```{r}
+#5
+tab <- table(dane$Walc==5,dane$G3)
+chisq.test(tab)
+```
+
+Odrzucamy $H_0$ na korzyść $H_1$. Picie alkoholu w weekendy na poziomie 5 oraz `G3` nie mają tego samego rozkładu.
+
+##### Podsumowanie
+
+Następujące kategorie badanych zmiennych mają wpływ na ilość punktów końcowych uczniów (`G3`):
+
+- `adress`: brak
+
+-   `Medu`: 0 - brak edukacji matki, 2 - poziom edukacji matki na poziomie ukończenia 5-9. klasy, 3 - wykształcenie średnie matki
+
+-   `Fedu`: 0 - brak edukacji ojca, 2 - poziom edukacji ojca na poziomie ukończenia 5-9. klasy, 3 - wykształcenie średnie ojca
+
+-   `studytime`: 2 - tygodniowy czas nauki od 2 do 5 godzin, 4 - tygodniowy czas nauki od 5 do 10 godzin
+
+-   `higher`: brak
+
+-   `freetime`: 1 - bardzo mało czasu wolnego, 2 - mało czasu wolnego, 3 - średnia ilość czasu wolnego, 4 - duża ilość czasu wolnego
+
+-   `goout`: 2 - mało okazji do spotykania się ze znajomymi, 3 - średnia ilość takich okazji, 4 - duża ilość
+
+-   `Dalc`: 2 - mała ilość alkoholu spożywana w dni robocze, 3 - średnia ilość alkoholu spożywana w dni robocze
+
+-   `Walc`: 1 - bardzo mała ilość alkoholu spożywana w weekendy, 2 - mała ilość spożywanego alkoholu w weekendy, 3 - średnia ilość spożywania alkoholu w weekendy
+
+## Analiza wariancji (ANOVA)
+
+Analiza wariancji to metoda służąca do porównania wartości oczekiwanych kilku populacji normalnych.
+
+Będziemy badać zmienne: `adress`, `Medu`, `Fedu`, `studytime`, `higher`, `freetime`, `goout`, `Dalc` oraz `Walc`, ponieważ te okazały się wpływać na badaną cechę (`G3`).
+
+Założenia ANOVA:
+
+-   badamy k populacji (grup) charakteryzowanych przez zmienną $X$. Zmienne $X_1$,$X_2$,$…$,$X_k$ przypisane grupom $1,2,…,k$ są niezależne i mają rozkłady normalne
+
+-   wszystkie populacje (grupy) mają jednakowe wariancje
+
+-   Będziemy badać zmienną `G3` w podziale ze względu na `adress` (miejsce zamieszkania ucznia o możliwych dwóch poziomach).
+
+```{r}
+dane %>% 
+  ggboxplot(x='adress', y='G3', fill='adress', add='jitter')
+```
+
+```{r}
+dane %>% 
+  ggline(x='adress', y='G3', add='mean_ci')
+```
+
+Dostrzec można zauważalną różnicę w średnich w grupach.
+
+Sprawdzamy założenia.
+
+```{r}
+count(dane, adress)
+```
+
+Grupy są liczne. Mozemy przejść do badania normalności.
+
+$H_0$: Rozkład cechy jest rozkładem normalnym.
+
+$H_1$: Rozkład cechy nie jest rozkładem normalnym.
+
+```{r}
+dane %>% 
+  group_by(adress) %>% 
+  shapiro_test(G3) |> 
+  kable() |> 
+  kable_styling(full_width=F)
+```
+
+Dla obu grup założenie o normalności jest spełnione.
+
+Sprawdzamy równość wariancji.
+
+$H_0$: Wariancje w grupach są równe.
+
+$H_1$: Wariancje w grupach nie są równe.
+
+```{r}
+leveneTest(G3~adress, data=dane)
+```
+
+Nie ma podstaw do odrzucenia $H_0$ o równości wariancji w grupach.
+
+Przechodzimy zatem do budowy modelu:
+
+```{r}
+mod_adress <- aov(G3~adress, data=dane)
+summary(mod_adress)
+```
+
+Na poziomie istotności 0,05 odrzucamy hipotezę o tym, że średnie w każdej z grup są sobie równe, na korzyść hipotezy alternatywnej, że istnieje conajmniej jedna średnia grupowa istotnie różniąca się od pozostałych. Sprawdzimy to testem post-hoc LSD Fishera.
+
+```{r}
+LSD.test(mod_adress, "adress", p.adj="bonferroni", console=T)
+```
+
+Test potwierdza wysunięte wcześniej przypuszczenia, że średnie w badanych grupach znacznie się różnią.
+
+-   Będziemy badać zmienną `G3` w podziale ze względu na `Medu` (poziom edukacji matki o możliwych pięciu poziomach).
+
+```{r}
+dane %>% 
+  ggboxplot(x='Medu', y='G3', fill='Medu', add='jitter')
+```
+
+```{r}
+dane %>% 
+  ggline(x='Medu', y='G3', add='mean_ci')
+```
+
+Z obu wykresów widać, że mediana oraz średnia punktów dla poziomu edukacji matki równym 4 jest lepsza niż dla pozostałych poziomów.
+
+Sprawdzamy założenia.
+
+```{r}
+count(dane, Medu)
+```
+
+Grupy, poza grupą "0", są liczne. W przypadku małych prób, które nie spełniają założenia o normalności, należy zwrócić szczególną uwagę na kurtozę rozkładu; kurtoza w przypadku gdy jest większa od 0, powoduje zaniżenie wartości F.
+
+Poniżej przedstawione mamy wskaźniki kurtozy dla poszczególnych poziomów zmiennej `Medu`. Jak widzimy, dla poziomu 0, jest ona znacznie większa od 0, co może mieć wpływ na wartość statystyki F.
+
+```{r}
+kurtosis(dane$Medu==0)
+kurtosis(dane$Medu==1)
+kurtosis(dane$Medu==2)
+kurtosis(dane$Medu==3)
+kurtosis(dane$Medu==4)
+```
+
+$H_0$: Rozkład cechy jest rozkładem normalnym.
+
+$H_1$: Rozkład cechy nie jest rozkładem normalnym.
+
+```{r}
+dane %>% 
+  group_by(Medu) %>% 
+  shapiro_test(G3) |> 
+  kable() |> 
+  kable_styling(full_width=F)
+```
+
+Z testu Shapiro-Wilka wnioskujemy, że dla poziomu 0 nie ma podstaw do odrzucenia hipotezy o normalności. Dla pozostałych poziomów odrzucamy.
+
+Przedstawiony poniżej wykres normalności Q-Q skłania do wyciągnięcia wniosku o braku normalności rozkładu badanej cechy.
+
+```{r}
+plot(aov(G3~Medu, data = dane),which=2)
+```
+
+Sprawdzamy równość wariancji.
+
+$H_0$: Wariancje w grupach są równe.
+
+$H_1$: Wariancje w grupach nie są równe.
+
+```{r}
+leveneTest(G3~Medu, data=dane)
+```
+
+Nie ma podstaw do odrzucenia hipotezy o równości wariancji.
+
+Mimo, że test Shapiro-Wilka odrzucił hipotezę o normalności reszt dla większości poziomów badanej zmiennej, to test F jest odporny na brak normalności efektu losowego. Szczególnie małe znaczenie ma to założenie w przypadku dużych liczebności w podgrupach. Tutaj grupy są liczne, zatem mimo to przeprowadzimy analizę wariancji.
+
+Przechodzimy zatem do budowy modelu:
+
+```{r}
+mod_Medu <- aov(G3~Medu, data=dane)
+summary(mod_Medu)
+```
+
+Na poziomie istotności 0,05 odrzucamy hipotezę, że wszystkie średnie są równe ($H_0$: $\mu_1=\mu_2=\mu_3=\mu_4=\mu_5$ przeciwko $H_1$: istnieją $i,j∈\{1,2,3,4,5\}$, że $\mu_i≠\mu_j$). Zatem co najmniej jedna średnia grupowa jest różna istotnie od pozostałych. W celu odkrycia struktury średnich przeprowadzimy porównania wielokrotne testami post-hoc.
+
+```{r}
+LSD.test(mod_Medu, "Medu", p.adj="bonferroni", console=T)
+scheffe.test(mod_Medu, "Medu", console=T)
+```
+
+Widzimy, że średnia punktów uzyskiwanych przez uczniów o poziomie edukacji matki nr 4 - wykształcenie wyższe, różni się od pozostałych poziomów. Potwierdziło to zatem wcześniejsze przypuszczenia.
+
+-   Będziemy badać zmienną `G3` w podziale ze względu na `Fedu` (poziom edukacji ojca o możliwych pięciu poziomach).
+
+```{r}
+dane %>% 
+  ggboxplot(x='Fedu', y='G3', fill='Fedu', add='jitter')
+```
+
+```{r}
+dane %>% 
+  ggline(x='Fedu', y='G3', add='mean_ci')
+```
+
+Zauważyć można wzrost mediany oraz średniej punktów uczniów, których ojcowie mają wyższy poziom edukacji.
+
+Sprawdzamy założenia.
+
+```{r}
+count(dane, Fedu)
+```
+
+Podobnie, jak w przypadku zmiennej `Medu`, grupy, poza "0" są liczne, jednak grupa "0" to jedynie 7 obserwacji. Obliczymy dla niej kurtozę.
+
+```{r}
+kurtosis(dane$Medu==0)
+```
+
+Kurtoza znacznie przewyższa wartość 0, co może mieć wpływ na wartość statystyki F. Dodatkowo, na poprzednim wykresie, można było zauważyć, że przedział ufności dla cechy `Fedu` dla poziomu 0, był bardzo duży i zawierał w sobie przedziały ufności wszystkich innych poziomów tej cechy.
+
+$H_0$: Rozkład cechy jest rozkładem normalnym.
+
+$H_1$: Rozkład cechy nie jest rozkładem normalnym.
+
+```{r}
+dane %>% 
+  group_by(Fedu) %>% 
+  shapiro_test(G3) |> 
+  kable() |> 
+  kable_styling(full_width=F)
+```
+
+Odrzucamy hipotezę o normalności dla wszystkich poziomów cechy.
+
+Sprawdzamy równość wariancji.
+
+$H_0$: Wariancje w grupach są równe.
+
+$H_1$: Wariancje w grupach nie są równe.
+
+```{r}
+leveneTest(G3~Fedu, data=dane)
+```
+
+Nie ma podstaw do odrzucenia hipotezy o równości wariancji.
+
+Założenie o normalności nie jest spełnione, a o równości wariancji tak. Jednak ze względu na to, że test F jest odporny na brak normalności efektu losowego, oraz na liczność poszczególnych poziomów badanej cechy, ANOVA zostanie przeprowadzona.
+
+```{r}
+mod_Fedu <- aov(G3~Fedu, data=dane)
+summary(mod_Fedu)
+```
+
+Na poziomie istotności 0,05 odrzucamy hipotezę, że wszystkie średnie są równe (hipoteza zerowa to $\mu_1=\mu_2=\mu_3=\mu_4=\mu_5$ przeciwko hipotezie alternatywnej, że istnieją $i,j∈\{1,2,3,4,5\}$, że $\mu_i≠\mu_j$). Zatem co najmniej jedna średnia grupowa jest różna istotnie od pozostałych. W celu odkrycia struktury średnich w badanych grupach przeprowadzimy porównania wielokrotne testami post-hoc.
+
+```{r}
+LSD.test(mod_Fedu, "Fedu", p.adj="bonferroni", console=T)
+scheffe.test(mod_Fedu, "Fedu", console=T)
+```
+
+Jest różnica w średnich między grupą uczniów, których ojcowie mają poziom edukacji nr 1 oraz numery 3 i 4.
+
+-   Będziemy badać zmienną `G3` w podziale ze względu na `studytime` (tygodniowy czas nauki o możliwych czterech poziomach).
+
+```{r}
+dane %>% 
+  ggboxplot(x='studytime', y='G3', fill='studytime', add='jitter')
+```
+
+```{r}
+dane %>% 
+  ggline(x='studytime', y='G3', add='mean_ci')
+```
+
+Widać wzrost mediany oraz średniej punktów dla uczniów poświęcających czas na naukę na poziomie 3 oraz 4. Przewidujemy istotną różnicę w średnich między poziomami 1 oraz 4.
+
+Sprawdzamy założenia.
+
+```{r}
+count(dane, studytime)
+```
+
+Grupy są liczne. Można zatem sprawdzić założenie o normalności.
+
+$H_0$: Rozkład cechy jest rozkładem normalnym.
+
+$H_1$: Rozkład cechy nie jest rozkładem normalnym.
+
+```{r}
+dane %>% 
+  group_by(studytime) %>% 
+  shapiro_test(G3) |> 
+  kable() |> 
+  kable_styling(full_width=F)
+```
+
+Jedynie `studytime` na poziomie 4 spełnia założenie o normalności.
+
+Sprawdzamy równość wariancji.
+
+$H_0$: Wariancje w grupach są równe.
+
+$H_1$: Wariancje w grupach nie są równe.
+
+```{r}
+leveneTest(G3~studytime, data=dane)
+```
+
+Nie ma podstaw do odrzucenia $H_0$. Zatem mamy równość wariancji w grupach.
+
+Przeprawadzimy ANOVA mimo braku spełnienia założenia o normalności dla niektórych poziomów badanej cechy z powodów takich samych, jak to miało miejsce w analizie poprzednich zmiennych.
+
+```{r}
+mod_stud <- aov(G3~studytime, data=dane)
+summary(mod_stud)
+```
+
+Odrzucamy hipotezę, że wszystkie średnie są równe (hipoteza zerowa to $\mu_1=\mu_2=\mu_3=\mu_4$ przeciwko hipotezie alternatywnej, że istnieją $i,j∈\{1,2,3,4\}$, że $\mu_i≠\mu_j$).
+
+Wniosek: Ilość czasu poświęcanego nauce powoduje istotne różnice w średniej punktów. Sprawdzimy struktury średnich testem post-hoc LSD Fishera.
+
+```{r}
+LSD.test(mod_stud, "studytime", p.adj="bonferroni", console=T)
+```
+
+Zauważyć można znaczącą różnicę między średnimi w grupie 1 oraz pozostałymi poziomami, co potwierdza wcześniejsze przypuszczenia.
+
+-   Będziemy badać zmienną `G3` w podziale ze względu na `higher` (chęć kontynuowania edukacji o możliwych dwóch poziomach).
+
+```{r}
+dane %>% 
+  ggboxplot(x='higher', y='G3', fill='higher', add='jitter')
+```
+
+Na powyższym wykresie zauważyć można różnicę w medianach punktów uczniów na poszczególnych poziomach.
+
+```{r}
+dane %>% 
+  ggline(x='higher', y='G3', add='mean_ci')
+```
+
+Na drugim wykresie widać znaczące różnice średnich w grupach. Uczniowie chcący kontynuować edukację są grupą mającą wyższą średnią punktów.
+
+Sprawdzamy założenia.
+
+```{r}
+count(dane, higher)
+```
+
+Grupy są liczne. Można zatem sprawdzić założenie o normalności.
+
+$H_0$: Rozkład cechy jest rozkładem normalnym.
+
+$H_1$: Rozkład cechy nie jest rozkładem normalnym.
+
+```{r}
+dane %>% 
+  group_by(higher) %>% 
+  shapiro_test(G3) |> 
+  kable() |> 
+  kable_styling(full_width=F)
+```
+
+Odrzucamy hipotezę o normalności dla obu poziomów.
+
+Sprawdzamy równość wariancji.
+
+$H_0$: Wariancje w grupach są równe.
+
+$H_1$: Wariancje w grupach nie są równe.
+
+```{r}
+leveneTest(G3~higher, data=dane)
+```
+
+Nie ma podstaw do odrzucenia hipotezy o równości wariancji w grupach.
+
+Mimo braku spełnienia założenia o normalności, decydujemy o przeprowadzeniu ANOVA ze względu na zauważalne duże różnice średnich w grupach na wykresie oraz ze względu na odporność testu F na brak normalności efektu losowego.
+
+```{r}
+mod_higher <- aov(G3~higher, data=dane)
+summary(mod_higher)
+```
+
+Odrzucamy hipotezę, że wszystkie średnie są równe ($H_0$: $\mu_1=\mu_2$ przy hipotezie alternatywnej, że istnieją $i,j∈\{1,2\}$, że $\mu_i≠\mu_j$).
+
+Naszym wnioskiem jest, że chęć kontynuowania edukacji powoduje istotne różnice w średniej punktów. Sprawdźmy jak wyglądają różnice średnich w grupach testem poct-hoc LSD Fishera oraz testem Scheffe.
+
+```{r}
+LSD.test(mod_higher, "higher", p.adj="bonferroni", console=T)
+scheffe.test(mod_higher, "higher", console=T)
+```
+
+Widzimy istotne różnice średnich uzyskiwanych punktów w grupach.
+
+-   Będziemy badać zmienną `G3` w podziale ze względu na `freetime` (ilość czasu wolnego o możliwych pięciu poziomach).
+
+```{r}
+dane %>% 
+  ggboxplot(x='freetime', y='G3', fill='freetime', add='jitter')
+```
+
+```{r}
+dane %>% 
+  ggline(x='freetime', y='G3', add='mean_ci')
+```
+
+Dla uczniów mających więcej wolnego czasu, zauważyć można nieco niższą średnią punktów. Możliwa istotna różnica średnich między grupami "2" oraz "5".
+
+Sprawdzamy założenia.
+
+```{r}
+count(dane, freetime)
+```
+
+Grupy są liczne. Można zatem sprawdzić założenie o normalności.
+
+$H_0$: Rozkład cechy jest rozkładem normalnym.
+
+$H_1$: Rozkład cechy nie jest rozkładem normalnym.
+
+```{r}
+dane %>% 
+  group_by(freetime) %>% 
+  shapiro_test(G3) |> 
+  kable() |> 
+  kable_styling(full_width=F)
+```
+
+Dla poziomu 1 nie ma podstaw do odrzucenia hipotezy o normalności. Dla pozostałych poziomów cechy `freetime` odrzucamy tę hipotezę.
+
+Sprawdzamy równość wariancji.
+
+$H_0$: Wariancje w grupach są równe.
+
+$H_1$: Wariancje w grupach nie są równe.
+
+```{r}
+leveneTest(G3~freetime, data=dane)
+```
+
+Nie ma podstaw do odrzucenia hipotezy o równości wariancji w grupach.
+
+Przeprowadzimy analizę wariancji mimo braku spełnienia założenia o normalności.
+
+```{r}
+mod_free <- aov(G3~freetime, data=dane)
+summary(mod_free)
+```
+
+Odrzucamy hipotezę, że wszystkie średnie są równe ($H_0$: $\mu_1=\mu_2=\mu_3=\mu_4=\mu_5$ przeciwko $H_1$: istnieją $i,j∈\{1,2,3,4,5\}$, że $\mu_i≠\mu_j$).
+
+Naszym wnioskiem jest, że ilość czasu wolnego powoduje istotne różnice w średniej punktów.
+
+```{r}
+LSD.test(mod_free, "freetime", p.adj="bonferroni", console=T)
+scheffe.test(mod_free, "freetime", console=T)
+```
+
+Na podstawie testów post-hoc wnioskować można o istotnych różnicach punktów w grupie o ilości wolnego czasu na poziomie 5 (bardzo dużo), a grupach o poziomach 2 oraz 3, co potwierdza dostrzeżone wcześniej różnice w średnich na wykresach.
+
+-   Będziemy badać zmienną `G3` w podziale ze względu na `goout` (ilość czasu spędzanego ze znajomymi o możliwych pięciu poziomach).
+
+```{r}
+dane %>% 
+  ggboxplot(x='goout', y='G3', fill='goout', add='jitter')
+```
+
+```{r}
+dane %>% 
+  ggline(x='goout', y='G3', add='mean_ci')
+```
+
+Dla grupy o poziomie 2 (mało czasu ze znajomymi) średnia oraz mediana punktów jest nieco wyższa niż dla pozozstałych grup. Na drugim wykresie widoczne różnice w średnich między poziomami "2", "3" oraz "5", oraz "1" i "2".
+
+Sprawdzamy założenia.
+
+```{r}
+count(dane, goout)
+```
+
+Grupy są liczne. Można zatem sprawdzić założenie o normalności.
+
+$H_0$: Rozkład cechy jest rozkładem normalnym.
+
+$H_1$: Rozkład cechy nie jest rozkładem normalnym.
+
+```{r}
+dane %>% 
+  group_by(goout) %>% 
+  shapiro_test(G3) |> 
+  kable() |> 
+  kable_styling(full_width=F)
+```
+
+Dla wszystkich poziomów cechy `goout` odrzucamy hipotezę o normalności.
+
+Sprawdzamy równość wariancji.
+
+$H_0$: Wariancje w grupach są równe.
+
+$H_1$: Wariancje w grupach nie są równe.
+
+```{r}
+leveneTest(G3~goout, data=dane)
+```
+
+Nie ma podstaw do odrzucenia hipotezy o równości wariancji w grupach.
+
+Zostanie przeprowadzona ANOVA mimo braku spełnienia założenia o normalności.
+
+```{r}
+mod_goout <- aov(G3~goout, data=dane)
+summary(mod_goout)
+```
+
+Odrzucamy hipotezę, że wszystkie średnie są równe (nasza hipoteza zerowa to $\mu_1=\mu_2=\mu_3=\mu_4=\mu_5$ przy hipotezie alternatywnej, że istnieją $i,j∈\{1,2,3,4,5\}$, że $\mu_i≠\mu_j$).
+
+Wyciągamy wniosek, że ilość czasu wolnego powoduje istotne różnice w średniej punktów.
+
+```{r}
+LSD.test(mod_goout, "goout", p.adj="bonferroni", console=T)
+```
+
+Test post-hoc LSD Fishera pokazuje istotne różnice uzyskiwanych punktów między grupami 1, 5 oraz grupami 2, 3.
+
+-   Będziemy badać zmienną `G3` w podziale ze względu na `Dalc` (spożywanie alkoholu w dni robocze o możliwych pięciu poziomach).
+
+```{r}
+dane %>% 
+  ggboxplot(x='Dalc', y='G3', fill='Dalc', add='jitter')
+```
+
+```{r}
+dane %>% 
+  ggline(x='Dalc', y='G3', add='mean_ci')
+```
+
+Zarówno mediana, jak i średnia punktów uczniów, w których domach spożywa się więcej alkoholu w dni robocze, jest nieco niższa. Widoczne różnice w średnich między grupą "1", a pozostałymi grupami.
+
+Sprawdzamy założenia.
+
+```{r}
+count(dane, Dalc)
+```
+
+Grupy są liczne, choć dla poziomów "4" oraz "5" liczebności wynoszą po 17, co świadczy o niezbalansowaniu układu.
+
+$H_0$: Rozkład cechy jest rozkładem normalnym.
+
+$H_1$: Rozkład cechy nie jest rozkładem normalnym.
+
+```{r}
+dane %>% 
+  group_by(Dalc) %>% 
+  shapiro_test(G3) |> 
+  kable() |> 
+  kable_styling(full_width=F)
+```
+
+Dla poziomu 5 nie ma podstaw do odrzucenia o normalności. Dla pozostałych poziomów cechy `Dalc` odrzucamy hipotezę o normalności.
+
+Sprawdzamy równość wariancji.
+
+$H_0$: Wariancje w grupach są równe.
+
+$H_1$: Wariancje w grupach nie są równe.
+
+```{r}
+leveneTest(G3~Dalc, data=dane)
+```
+
+Nie ma podstaw do odrzucenia hipotezy o równości wariancji w grupach.
+
+Przeprowadzimy analizę wariancji mimo braku spełnienia założenia o normalności ze względu na liczność badanych grup oraz odporność testu F na brak normalności efektu losowego.
+
+```{r}
+mod_Dalc <- aov(G3~Dalc, data=dane)
+summary(mod_Dalc)
+```
+
+Odrzucamy hipotezę, że wszystkie średnie są równe (hipoteza zerowa to $\mu_1=\mu_2=\mu_3=\mu_4=\mu_5$ przy hipotezie alternatywnej, że istnieją $i,j∈\{1,2,3,4,5\}$, że $\mu_i≠\mu_j$).
+
+Wniosek: Spożywanie alkoholu w dni robocze powoduje istotne różnice w średniej punktów. Przeprowadzony zostanie test post-hoc aby sprawdzić różnice między średnimi w grupach.
+
+```{r}
+LSD.test(mod_Dalc, "Dalc", p.adj="bonferroni", console=T)
+```
+
+Zauważyć można istotne różnice w średnich punktów między grupą uczniów, w których domach spożywa się alkohol w dni robocze na poziomie 1 (bardzo mało), a pozostałymi poziomami (od mało do bardzo dużo).
+
+-   Będziemy badać zmienną `G3` w podziale ze względu na `Walc` (ilość spożywanego alkoholu w weekendy o możliwych pięciu poziomach).
+
+```{r}
+dane %>% 
+  ggboxplot(x='Walc', y='G3', fill='Walc', add='jitter')
+```
+
+```{r}
+dane %>% 
+  ggline(x='Walc', y='G3', add='mean_ci')
+```
+
+Widać niższe średnie w grupach uczniów, w których domach spożywa się więcej alkoholu w weekendy. Ponadto widać różnice w średnich punktów między poziomami "1", "2" oraz "5".
+
+Sprawdzamy założenia.
+
+```{r}
+count(dane, Walc)
+```
+
+Grupy są liczne. Można zatem sprawdzić założenie o normalności.
+
+$H_0$: Rozkład cechy jest rozkładem normalnym.
+
+$H_1$: Rozkład cechy nie jest rozkładem normalnym.
+
+```{r}
+dane %>% 
+  group_by(Walc) %>% 
+  shapiro_test(G3) |> 
+  kable() |> 
+  kable_styling(full_width=F)
+```
+
+Dla wszystkich poziomów cechy `Walc` odrzucamy hipotezę o normalności.
+
+Sprawdzamy równość wariancji.
+
+$H_0$: Wariancje w grupach są równe.
+
+$H_1$: Wariancje w grupach nie są równe.
+
+```{r}
+leveneTest(G3~Walc, data=dane)
+```
+
+Nie ma podstaw do odrzucenia hipotezy o równości wariancji w grupach.
+
+Przeprowadzimy analizę wariancji mimo braku spełnienia założenia o normalności ze względu na liczność badanych grup oraz odporność testu F na brak normalności efektu losowego.
+
+```{r}
+mod_Walc <- aov(G3~Walc, data=dane)
+summary(mod_Walc)
+```
+
+Odrzucamy hipotezę, że wszystkie średnie są równe ($H_0$: $\mu_1=\mu_2=\mu_3=\mu_4=\mu_5$ przeciwko hipotezie alternatywnej, że istnieją $i,j∈\{1,2,3,4,5\}$, że $\mu_i≠\mu_j$).
+
+Naszym wnioskiem jest, że spożywanie alkoholu w dni robocze powoduje istotne różnice w średniej uzyskiwanych punktów. Przeprowadzony zostanie test post-hoc LSD Fishera, aby sprawdzić różnice między średnimi w grupach.
+
+```{r}
+LSD.test(mod_Walc, "Walc", p.adj="bonferroni", console=T)
+```
+
+Zauważyć można różnice w średnich punktach między grupą uczniów, w których domach spożywa się alkohol w weekendy na poziomie 1 i 2 (bardzo mało oraz mało), a poziomami 4 i 5 (dużo i bardzo dużo), co potwierdza wcześniejsze przypuszczenia.
+
+##### Podsumowanie
+
+- `adress` - dla poziomu "U" - mieszkający w mieście, zauważalna wyższa średnia punktów
+
+-   `Medu` - dla poziomu wykształcenia 4 - wykształcenie wyższe, punkty uzyskiwane przez uczniów są wyższe niż dla pozostałych poziomów
+
+-   `Fedu` - dla poziomów wykształcenia 3 i 4 - ukończona szkoła średnia oraz ukończona szkoła wyzsza, średnia uzyskiwanych punktów przez uczniów wyższa niż dla pozostałych grup
+
+-   `studytime` - dla poziomu 1 - tygodniowa ilość nauki mieści się w przedziale 0-2 godziny, średnia uzyskiwanych punktów przez uczniów jest niższa niż dla pozostałych poziomów
+
+-   `higher`- dla poziomu `yes` - uczniów chcących kontynuować swoją edukację, średnia uzyskiwanych punktów jest wyższa niż dla uczniów w grupie `no` - nie chcących kontynuować edukacji
+
+-   `freetime` - niższa średnia uzyskiwanych punktów dla grupy uczniów mających ilość czasu wolnego na poziomie 5 - bardzo dużo, w porównaniu z pozostałymi poziomami tej cechy
+
+-   `goout` - widoczne znaczące różnice w średnich uzyskiwanych punktówn między poziomami 1 i 5 (bardzo mała oraz bardzo duża ilość czasu poświęcanego na spotkania ze znajomymi) oraz 2 i 3 (mała i średnia ilość czasu spędzanego ze znajomymi)
+
+-   `Dalc` - wyższa średnia dla grupy uczniów o poziomie tej cechy 1 - bardzo mało spożycia alkoholu w dni robocze, w porównaniu z pozostałymi poziomami tej cechy
+
+-   `Walc` - wyższe średnie uzyskiwanych punktów pzrez uczniów, w których domach ilość spożywanego alkoholu w weekendy jest na poziomach 1, 2 (bardzo mało oraz mało), niż poziomami 4 i 5 (dużo oraz bardzo dużo)
+
+## Wnioski
+
+Ilość punktów końcowych uczniów zależy od:
+
+- adresu zamieszkania ucznia
+
+Uczniowie mieszkający w mieście otrzymywali wyższe ilości punktów na koniec roku.
+
+-   poziomu edukacji matki
+
+Mediana oraz zakres zdobywanych punktów wzrasta wraz z wyższym poziomem edukacji matki. W przypadku grupy uczniów, których matki mają wykształcenie wyższe, uzyskują oni wyższe ilości punktów niż pozostałe grupy.
+
+-   poziomu edukacji ojca
+
+Mediana oraz średnia uzyskiwanych punktów wzrasta wraz z wyższym wykształceniem ojca.
+
+-   tygodniowej ilości nauki
+
+Wraz ze wzrostem czasu poświęcanego nauce w ciągu tygodnia, zauważyć można wyższą medianę punktów oraz rozszerza się ich zakres. Dla tygodniowej ilości nauki trwającej od 0 do 2 godzin, średnia punktów uczniów jest niższa niż dla pozostałych poziomów.
+
+-   chęci kontynuowania edukacji
+
+Średnia uzyskiwanych punktów końcowych uczniów, którzy zamierzają kontynuować edukację, jest wyższa od średniej grupy uczniów, którzy swojej edukacji nie zamierzają kontynuować.
+
+-   ilości czasu wolnego
+
+Uczniowie mający mniej czasu wolnego uzyskują lepsze ilości punktów na koniec roku.
+
+-   ilości czasu przeznaczonej na spotkania ze znajomymi
+
+Uczniowie, którzy na spotykanie się ze znajomymi poświęcają mniej czasu, mają wyższą średnią punktów niż uczniowie, którzy tego czasu mają więcej.
+
+-   ilości spożywanego alkoholu w dni robocze
+
+Uczniowie, w których domach spożywa się duże ilości alkoholu uzyskują dużo niższe punkty.
+
+-   ilości spożywanego alkoholu w weekendy
+
+Wyższe średnie punktów końcowych z przedmiotu występują u uczniów, w których domach ilość spożywanego alkoholu w weekendy jest bardzo mała oraz mała.
+
